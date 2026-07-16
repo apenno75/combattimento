@@ -177,6 +177,23 @@
             text-shadow: 0 0 10px #fff, 0 0 20px var(--neon-p1), 0 0 30px var(--neon-p2);
         }
 
+        /* Gestione caricamento avatar */
+        .avatar-upload-btn {
+            background: #222;
+            border: 2px dashed #444;
+            color: #aaa;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .avatar-upload-btn:active {
+            background: #333;
+            border-color: #fff;
+        }
+
         /* --- STILIZZAZIONE PULSANTI TOUCH --- */
         .controller-container {
             display: flex;
@@ -227,14 +244,13 @@
             display: none;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             width: 100%;
             height: 100%;
             background: radial-gradient(circle at center, #100a25 0%, #050110 100%);
             padding: 20px;
         }
         #controller-status {
-            margin-bottom: 40px;
             font-size: 1.1rem;
             text-align: center;
             color: #aaa;
@@ -287,6 +303,11 @@
             </div>
         </div>
 
+        <div style="text-align: center; width: 100%;">
+            <label class="avatar-upload-btn" for="p1-avatar-input">📸 Carica tua foto (P1)</label>
+            <input type="file" id="p1-avatar-input" accept="image/*" style="display: none;" onchange="handleAvatarUpload(this, 'p1')">
+        </div>
+
         <div class="controller-container" id="p1-touch-controls">
             <div class="dpad">
                 <button class="btn" id="btn-left">◀</button>
@@ -302,8 +323,13 @@
     </div>
 
     <div id="controller-screen">
-        <div id="controller-status">Inizializzazione...</div>
-        <div class="controller-container" style="flex-direction: column; align-items: center; gap: 50px;">
+        <div style="text-align: center; margin-top: 20px;">
+            <div id="controller-status" style="margin-bottom: 15px;">Inizializzazione...</div>
+            <label class="avatar-upload-btn" for="p2-avatar-input" style="border-color: var(--neon-p2);">📸 Scegli la tua foto (P2)</label>
+            <input type="file" id="p2-avatar-input" accept="image/*" style="display: none;" onchange="handleAvatarUpload(this, 'p2')">
+        </div>
+        
+        <div class="controller-container" style="flex-direction: column; align-items: center; gap: 40px; margin-bottom: 30px;">
             <div class="dpad" style="width: 100%; max-width: 400px; justify-content: center;">
                 <button class="btn" id="c-btn-left">◀</button>
                 <button class="btn btn-empty"></button>
@@ -350,13 +376,70 @@
             }
         }
 
-        // --- CLASSE PERSONAGGIO STILIZZATA (Shadow/Neon) ---
+        // Variabili per salvare le immagini dei volti tagliati
+        const playerAvatars = {
+            p1: null, // Oggetto Image
+            p2: null  // Oggetto Image
+        };
+
+        // Funzione per ritagliare a cerchio l'immagine caricata
+        function handleAvatarUpload(input, playerKey) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Creiamo un canvas di supporto per ritagliare la faccia in un cerchio
+                    const cropCanvas = document.createElement('canvas');
+                    const size = 150; // Dimensione dell'avatar ritagliato
+                    cropCanvas.width = size;
+                    cropCanvas.height = size;
+                    const cropCtx = cropCanvas.getContext('2d');
+
+                    // Calcolo ritaglio al centro (mantenendo le proporzioni quadrate)
+                    const minDim = Math.min(img.width, img.height);
+                    const sx = (img.width - minDim) / 2;
+                    const sy = (img.height - minDim) / 2;
+
+                    // Disegniamo il ritaglio a cerchio
+                    cropCtx.beginPath();
+                    cropCtx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+                    cropCtx.clip();
+                    cropCtx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+                    // Salviamo l'immagine finale elaborata
+                    const croppedImg = new Image();
+                    croppedImg.onload = function() {
+                        if (playerKey === 'p1') {
+                            playerAvatars.p1 = croppedImg;
+                        } else {
+                            // Se siamo il controller remoto P2, salviamo e inviamo l'immagine a P1 tramite P2P
+                            playerAvatars.p2 = croppedImg;
+                            if (conn && conn.open) {
+                                conn.send({
+                                    type: 'AVATAR',
+                                    dataUrl: cropCanvas.toDataURL('image/png')
+                                });
+                            }
+                        }
+                    };
+                    croppedImg.src = cropCanvas.toDataURL('image/png');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- CLASSE PERSONAGGIO STILIZZATA (Shadow/Neon con Face-Mapping) ---
         class Fighter {
-            constructor(x, y, color, side) {
+            constructor(x, y, color, side, playerKey) {
                 this.startX = x;
                 this.groundY = y;
                 this.mainColor = color;
                 this.side = side;
+                this.playerKey = playerKey; // 'p1' o 'p2'
                 
                 this.width = 70;
                 this.height = 160;
@@ -478,11 +561,28 @@
                 const centerX = this.x + this.width / 2;
                 const centerY = this.y;
 
-                // Testa
-                ctx.beginPath();
-                ctx.arc(centerX, centerY + 25, 20, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
+                // --- DISEGNO TESTA (O FOTO CARICATA) ---
+                const avatar = playerAvatars[this.playerKey];
+                const headRadius = 22;
+                const headCenterY = centerY + 25;
+
+                if (avatar) {
+                    // Rimuove l'ombra durante il disegno della foto per non opacizzarla
+                    ctx.save();
+                    ctx.shadowBlur = 0;
+                    ctx.drawImage(avatar, centerX - headRadius, headCenterY - headRadius, headRadius * 2, headRadius * 2);
+                    ctx.restore();
+                    // Bordo al neon sopra la faccia
+                    ctx.beginPath();
+                    ctx.arc(centerX, headCenterY, headRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    // Testa standard
+                    ctx.beginPath();
+                    ctx.arc(centerX, headCenterY, headRadius - 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
 
                 // Busto
                 ctx.beginPath();
@@ -540,8 +640,8 @@
         }
 
         const GROUND_Y_LOGIC = LOGICAL_HEIGHT - 40;
-        const player1 = new Fighter(150, GROUND_Y_LOGIC, '#00ffcc', 'left');
-        const player2 = new Fighter(780, GROUND_Y_LOGIC, '#ff00ff', 'right');
+        const player1 = new Fighter(150, GROUND_Y_LOGIC, '#00ffcc', 'left', 'p1');
+        const player2 = new Fighter(780, GROUND_Y_LOGIC, '#ff00ff', 'right', 'p2');
 
         // --- RETE E CONNESSIONE MULTIPLAYER ---
         const urlParams = new URLSearchParams(window.location.search);
@@ -585,13 +685,11 @@
                 const baseUrl = window.location.href.split('?')[0];
                 const controllerUrl = `${baseUrl}?role=controller&room=${id}`;
                 
-                // Aggiorna il testo e mostra il link alternativo
                 document.getElementById('loading-text').innerText = "In attesa che P2 si colleghi...";
                 const altLink = document.getElementById('controller-link');
                 altLink.href = controllerUrl;
                 altLink.style.display = "block";
 
-                // Utilizzo dell'API pubblica qrserver per caricare il codice QR istantaneamente
                 const qrImg = document.getElementById("qrcode-img");
                 const encodedUrl = encodeURIComponent(controllerUrl);
                 qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodedUrl}`;
@@ -609,6 +707,13 @@
                 conn.on('data', (data) => {
                     if (data.type === 'INPUT') {
                         inputState.p2 = data.inputs;
+                    } else if (data.type === 'AVATAR') {
+                        // Quando P2 invia la sua foto, la carichiamo nel gioco principale
+                        const tempImg = new Image();
+                        tempImg.onload = function() {
+                            playerAvatars.p2 = tempImg;
+                        };
+                        tempImg.src = data.dataUrl;
                     }
                 });
             });
@@ -706,7 +811,7 @@
             player1.update(inputState.p1, player2);
             player2.update(inputState.p2, player1);
 
-            // Evita collisione troppo vicina
+            // Evita collisione troppo vicina (i due giocatori non si appiccicano)
             const minDistance = 60;
             const selfCenter1 = player1.x + player1.width / 2;
             const selfCenter2 = player2.x + player2.width / 2;
