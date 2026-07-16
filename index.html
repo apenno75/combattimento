@@ -3,27 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro Web Fighter</title>
+    <title>Neon Shadow Fighter P2P</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
+        :root {
+            --bg-dark: #050110;
+            --neon-p1: #00ffcc;
+            --neon-p1-dim: rgba(0, 255, 204, 0.3);
+            --neon-p2: #ff00ff;
+            --neon-p2-dim: rgba(255, 0, 255, 0.3);
+            --neon-text: #fff;
+            --ui-border: #444;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
             user-select: none;
             -webkit-user-select: none;
+            touch-action: none; /* Disabilita zoom e scroll touch */
         }
+
         body {
-            background-color: #111;
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-dark);
+            color: var(--neon-text);
+            font-family: 'Verdana', sans-serif;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* SCHERMATA DI GIOCO (HOST) */
+        /* --- SCHERMATA DI GIOCO (HOST) --- */
         #game-screen {
             display: flex;
             flex-direction: column;
@@ -34,42 +47,59 @@
             padding: 10px;
             position: relative;
         }
+
+        /* HUD: Barre Salute */
         #hud {
             display: flex;
             justify-content: space-between;
             width: 100%;
-            max-width: 800px;
-            margin-top: 10px;
+            max-width: 900px;
+            margin-top: 20px;
+            z-index: 2;
         }
         .health-bar-container {
             width: 45%;
-            background: #333;
-            border: 3px solid #fff;
-            height: 30px;
+            background: #111;
+            border: 2px solid var(--ui-border);
+            height: 35px;
             position: relative;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
         .health-bar {
             width: 100%;
             height: 100%;
-            background: #ff003c;
-            transition: width 0.1s ease;
+            background: linear-gradient(to right, #ff003c, #ff5500);
+            transition: width 0.2s ease-out;
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.3);
         }
+        .health-bar.p1-bar { background: linear-gradient(to right, #0088aa, var(--neon-p1)); }
+        .health-bar.p2-bar { background: linear-gradient(to right, #aa00aa, var(--neon-p2)); }
+
         .player-label {
             position: absolute;
-            top: -20px;
+            top: -22px;
+            font-size: 0.8rem;
             font-weight: bold;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px #fff;
         }
-        #p1-label { left: 0; }
-        #p2-label { right: 0; }
+        #p1-label { left: 5px; color: var(--neon-p1); }
+        #p2-label { right: 5px; color: var(--neon-p2); }
 
+        /* Area Canvas */
         #canvas-container {
             width: 100%;
-            max-width: 800px;
+            max-width: 1000px;
             height: 60vh;
-            border: 4px solid #fff;
-            background: linear-gradient(to bottom, #1a052e, #0c0014);
+            border: 3px solid #222;
+            background: radial-gradient(circle at center, #1a053d 0%, #050110 100%);
             position: relative;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            overflow: hidden;
         }
         canvas {
             width: 100%;
@@ -81,7 +111,7 @@
         #lobby-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(5, 1, 16, 0.95);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -89,69 +119,50 @@
             z-index: 10;
             text-align: center;
             padding: 20px;
+            border-radius: 8px;
         }
-        #qrcode {
-            background: white;
-            padding: 10px;
-            margin: 20px 0;
-            border-radius: 5px;
-        }
-
-        /* CONTROLLER SULLO SCHERMO (Per Giocatore 1 su Host e per Giocatore 2 su Remote) */
-        .controller-container {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            max-width: 800px;
-            padding: 10px;
-            gap: 20px;
-        }
-        .dpad, .action-buttons {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-        .btn {
-            background: #222;
-            border: 2px solid #fff;
+        #lobby-overlay h2 {
+            font-size: 2.5rem;
             color: #fff;
-            font-size: 1.2rem;
-            font-weight: bold;
-            padding: 20px;
-            text-align: center;
-            border-radius: 10px;
-            touch-action: manipulation;
+            text-shadow: 0 0 10px var(--neon-p1), 0 0 20px var(--neon-p2);
+            margin-bottom: 10px;
         }
-        .btn:active {
-            background: #fff;
-            color: #000;
-        }
-        .btn-empty {
-            visibility: hidden;
-        }
-
-        /* SCHERMATA CONTROLLER (CLIENT) */
-        #controller-screen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
+        
+        /* Container del QR Code fisso e visibile */
+        #qrcode-container {
+            display: flex;
             justify-content: center;
-            width: 100%;
-            height: 100%;
-            background: #111;
-            padding: 20px;
+            align-items: center;
+            background: white;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.7);
+            width: 210px;
+            height: 210px;
         }
-        #controller-status {
-            margin-bottom: 30px;
-            font-size: 1.2rem;
-            text-align: center;
+        #qrcode-img {
+            display: block;
+            width: 180px;
+            height: 180px;
+            border: none;
         }
 
-        /* Winner Screen */
+        #controller-link {
+            color: var(--neon-p1);
+            text-decoration: underline;
+            font-size: 0.8rem;
+            margin-top: 10px;
+            word-break: break-all;
+            max-width: 80%;
+            cursor: pointer;
+        }
+
+        /* Schermata Vittoria */
         #winner-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.9);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -159,10 +170,87 @@
             z-index: 5;
         }
         #winner-text {
-            font-size: 3rem;
-            color: #ff003c;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #ff003c;
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px #fff, 0 0 20px var(--neon-p1), 0 0 30px var(--neon-p2);
+        }
+
+        /* --- STILIZZAZIONE PULSANTI TOUCH --- */
+        .controller-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 900px;
+            padding: 15px;
+            gap: 20px;
+            z-index: 2;
+        }
+        .dpad, .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .btn {
+            background: #111;
+            border: 2px solid var(--ui-border);
+            color: #888;
+            font-size: 1.5rem;
+            font-weight: bold;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%; /* Pulsanti rotondi */
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 #000;
+        }
+        /* Feedback pressione pulsanti P1 (Host) */
+        #p1-touch-controls .btn:active {
+            background: #222;
+            border-color: var(--neon-p1);
+            color: var(--neon-p1);
+            box-shadow: 0 0 15px var(--neon-p1-dim), inset 0 0 5px var(--neon-p1);
+            transform: translateY(2px);
+        }
+        .btn-empty { visibility: hidden; }
+
+        /* Pulsanti d'azione specifici */
+        .btn-punch { color: #ff5555; }
+        .btn-kick { color: #ffaa00; }
+        .btn-block { color: #55aaff; }
+
+        /* --- SCHERMATA CONTROLLER (CLIENT) --- */
+        #controller-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #100a25 0%, #050110 100%);
+            padding: 20px;
+        }
+        #controller-status {
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+            text-align: center;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        /* Stilizzazione pulsanti P2 (Remote) */
+        #controller-screen .controller-container .btn {
+            width: 90px; height: 90px; /* Più grandi sul controller */
+            font-size: 2rem;
+        }
+        #controller-screen .btn:active {
+            border-color: var(--neon-p2);
+            color: var(--neon-p2);
+            box-shadow: 0 0 20px var(--neon-p2-dim), inset 0 0 10px var(--neon-p2);
+            transform: translateY(2px);
         }
     </style>
 </head>
@@ -172,11 +260,11 @@
         <div id="hud">
             <div class="health-bar-container">
                 <span class="player-label" id="p1-label">P1 (Tu)</span>
-                <div class="health-bar" id="p1-health"></div>
+                <div class="health-bar p1-bar" id="p1-health"></div>
             </div>
             <div class="health-bar-container">
                 <span class="player-label" id="p2-label">P2 (In Attesa...)</span>
-                <div class="health-bar" id="p2-health"></div>
+                <div class="health-bar p2-bar" id="p2-health"></div>
             </div>
         </div>
 
@@ -184,15 +272,18 @@
             <canvas id="gameCanvas"></canvas>
             
             <div id="lobby-overlay">
-                <h2>RETRO FIGHTER</h2>
-                <p style="margin-top: 10px;">Inquadra per connettere il Giocatore 2:</p>
-                <div id="qrcode"></div>
-                <p style="font-size: 0.8rem; color: #888;">Assicurati che entrambi i telefoni siano connessi a Internet</p>
+                <h2>NEON SHADOWS</h2>
+                <p style="color: #ccc; font-size: 0.9rem;">Scansiona per connettere il Giocatore 2:</p>
+                <div id="qrcode-container">
+                    <img id="qrcode-img" src="" alt="Generazione QR Code..." />
+                </div>
+                <p id="loading-text" style="color: #ffaa00; font-size: 0.8rem;">Generazione codice di gioco...</p>
+                <a id="controller-link" target="_blank" style="display:none;">Oppure clicca/copia questo link per il P2</a>
             </div>
 
             <div id="winner-screen">
                 <div id="winner-text">P1 VINCE!</div>
-                <button class="btn" onclick="resetGame()">Rigoca</button>
+                <button class="btn" style="width: auto; padding: 0 30px; border-radius: 10px;" onclick="resetGame()">Rigoca</button>
             </div>
         </div>
 
@@ -203,65 +294,82 @@
                 <button class="btn" id="btn-right">▶</button>
             </div>
             <div class="action-buttons">
-                <button class="btn" id="btn-punch">P</button>
-                <button class="btn" id="btn-kick">K</button>
-                <button class="btn" id="btn-block">B</button>
+                <button class="btn btn-punch" id="btn-punch">P</button>
+                <button class="btn btn-kick" id="btn-kick">K</button>
+                <button class="btn btn-block" id="btn-block">B</button>
             </div>
         </div>
     </div>
 
     <div id="controller-screen">
-        <div id="controller-status">Connessione al gioco in corso...</div>
-        <div class="controller-container" style="flex-direction: column; align-items: center; gap: 40px;">
-            <div class="dpad" style="width: 100%; max-width: 400px;">
-                <button class="btn" id="c-btn-left" style="padding: 30px;">◀</button>
+        <div id="controller-status">Inizializzazione...</div>
+        <div class="controller-container" style="flex-direction: column; align-items: center; gap: 50px;">
+            <div class="dpad" style="width: 100%; max-width: 400px; justify-content: center;">
+                <button class="btn" id="c-btn-left">◀</button>
                 <button class="btn btn-empty"></button>
-                <button class="btn" id="c-btn-right" style="padding: 30px;">▶</button>
+                <button class="btn" id="c-btn-right">▶</button>
             </div>
-            <div class="action-buttons" style="width: 100%; max-width: 400px;">
-                <button class="btn" id="c-btn-punch" style="padding: 30px; background: #ff003c;">PUNGO</button>
-                <button class="btn" id="c-btn-kick" style="padding: 30px; background: #ffaa00;">CALCIO</button>
-                <button class="btn" id="c-btn-block" style="padding: 30px; background: #0088ff;">PARATA</button>
+            <div class="action-buttons" style="width: 100%; max-width: 450px; grid-template-columns: repeat(3, 1fr);">
+                <button class="btn btn-punch" id="c-btn-punch">PUNGO</button>
+                <button class="btn btn-block" id="c-btn-block">PARATA</button>
+                <button class="btn btn-kick" id="c-btn-kick">CALCIO</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- CONFIGURAZIONE E SETUP ---
+        // --- CONFIGURAZIONE E SETUP CANVAS ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Adatta la risoluzione del canvas
+        const LOGICAL_WIDTH = 1000;
+        const LOGICAL_HEIGHT = 600;
+
         function resizeCanvas() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Stati di input dei giocatori
         const inputState = {
             p1: { left: false, right: false, punch: false, kick: false, block: false },
             p2: { left: false, right: false, punch: false, kick: false, block: false }
         };
 
-        // --- CLASSE PERSONAGGIO ---
+        let particles = [];
+        function createHitParticles(x, y, color) {
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 20 + Math.random() * 10,
+                    color: color
+                });
+            }
+        }
+
+        // --- CLASSE PERSONAGGIO STILIZZATA (Shadow/Neon) ---
         class Fighter {
             constructor(x, y, color, side) {
                 this.startX = x;
-                this.y = y;
-                this.color = color;
-                this.side = side; // 'left' o 'right'
+                this.groundY = y;
+                this.mainColor = color;
+                this.side = side;
                 
-                this.width = 60;
-                this.height = 130;
+                this.width = 70;
+                this.height = 160;
                 this.x = x;
+                this.y = y - this.height;
+                
                 this.vx = 0;
-                this.speed = 4;
+                this.speed = 6;
                 
                 this.health = 100;
-                this.state = 'idle'; // 'idle', 'walking', 'punching', 'kicking', 'blocking', 'hit'
+                this.state = 'idle';
                 this.stateTimer = 0;
+                this.animFrame = 0;
             }
 
             reset() {
@@ -269,12 +377,14 @@
                 this.health = 100;
                 this.state = 'idle';
                 this.stateTimer = 0;
+                this.vx = 0;
             }
 
             update(inputs, opponent) {
                 if (this.health <= 0) return;
 
-                // Gestione degli stati temporanei (attacchi e animazione colpo subito)
+                this.animFrame++;
+
                 if (this.stateTimer > 0) {
                     this.stateTimer--;
                     if (this.stateTimer === 0) {
@@ -282,15 +392,11 @@
                     }
                 }
 
-                // Se non si è bloccati in un'animazione d'attacco o di danno ricevuto
                 if (this.state !== 'punching' && this.state !== 'kicking' && this.state !== 'hit') {
-                    // Parata
                     if (inputs.block) {
                         this.state = 'blocking';
                         this.vx = 0;
                     } else {
-                        this.state = 'idle';
-                        // Movimento
                         if (inputs.left) {
                             this.vx = -this.speed;
                             this.state = 'walking';
@@ -299,125 +405,173 @@
                             this.state = 'walking';
                         } else {
                             this.vx = 0;
+                            this.state = 'idle';
                         }
 
-                        // Attacchi
                         if (inputs.punch) {
                             this.state = 'punching';
-                            this.stateTimer = 15; // Frame di durata dell'attacco
+                            this.stateTimer = 12;
                             this.vx = 0;
-                            this.checkHit(opponent, 10, 70); // 10 Danni, range 70px
+                            this.checkHit(opponent, 8, 90, '#ff5555');
                         } else if (inputs.kick) {
                             this.state = 'kicking';
-                            this.stateTimer = 20;
+                            this.stateTimer = 18;
                             this.vx = 0;
-                            this.checkHit(opponent, 15, 90); // 15 Danni, range 90px
+                            this.checkHit(opponent, 12, 110, '#ffaa00');
                         }
                     }
                 }
 
-                // Aggiorna posizione ed evita l'uscita dallo schermo
                 this.x += this.vx;
-                if (this.x < 0) this.x = 0;
-                if (this.x > canvas.width - this.width) this.x = canvas.width - this.width;
+                
+                if (this.x < 20) this.x = 20;
+                if (this.x > LOGICAL_WIDTH - this.width - 20) this.x = LOGICAL_WIDTH - this.width - 20;
             }
 
-            checkHit(opponent, damage, range) {
-                // Calcola distanza tra i due combattenti
+            checkHit(opponent, damage, range, particleColor) {
                 const selfCenter = this.x + this.width / 2;
                 const oppCenter = opponent.x + opponent.width / 2;
                 const distance = Math.abs(selfCenter - oppCenter);
 
-                // Controllo se l'avversario è nel raggio d'azione ed è rivolto verso di lui
                 if (distance < range) {
+                    let hitX = opponent.x + opponent.width/2;
+                    let hitY = opponent.y + opponent.height/2;
+
                     if (opponent.state === 'blocking') {
-                        // Colpo parato: danno ridotto al minimo
-                        opponent.takeDamage(damage * 0.1);
+                        opponent.takeDamage(damage * 0.1, false);
+                        createHitParticles(hitX, hitY, '#55aaff');
                     } else {
-                        opponent.takeDamage(damage);
+                        opponent.takeDamage(damage, true);
+                        createHitParticles(hitX, hitY, particleColor);
                     }
                 }
             }
 
-            takeDamage(amount) {
+            takeDamage(amount, shouldStun) {
                 this.health -= amount;
                 if (this.health < 0) this.health = 0;
-                this.state = 'hit';
-                this.stateTimer = 10; // Stun da colpo
+                
+                if (shouldStun) {
+                    this.state = 'hit';
+                    this.stateTimer = 15;
+                    this.vx = (this.side === 'left' ? -2 : 2);
+                }
             }
 
             draw() {
                 ctx.save();
-                ctx.fillStyle = this.color;
+                
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.mainColor;
+                ctx.strokeStyle = this.mainColor;
+                ctx.lineWidth = 4;
+                ctx.fillStyle = '#000';
 
-                // Disegna corpo principale (Cambia forma in base allo stato)
-                let drawHeight = this.height;
-                let drawY = canvas.height - this.height - 20; // Offset dal terreno
-
-                if (this.state === 'blocking') {
-                    ctx.fillStyle = '#555'; // Diventa grigio in parata
+                if (this.state === 'hit') {
+                    ctx.strokeStyle = '#fff'; ctx.shadowColor = '#fff';
+                } else if (this.state === 'punching' || this.state === 'kicking') {
+                    ctx.strokeStyle = '#ff3333'; ctx.shadowColor = '#ff3333';
+                } else if (this.state === 'blocking') {
+                    ctx.strokeStyle = '#55aaff'; ctx.shadowColor = '#55aaff';
                 }
 
-                // Corpo
-                ctx.fillRect(this.x, drawY, this.width, drawHeight);
+                const centerX = this.x + this.width / 2;
+                const centerY = this.y;
 
                 // Testa
-                ctx.fillStyle = '#ffdbac';
-                ctx.fillRect(this.x + (this.side === 'left' ? 15 : 5), drawY - 35, 40, 35);
+                ctx.beginPath();
+                ctx.arc(centerX, centerY + 25, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
 
-                // Arti/Attacchi visivi
-                ctx.fillStyle = this.color;
-                if (this.state === 'punching') {
-                    ctx.fillStyle = '#ff0000';
-                    let punchX = this.side === 'left' ? this.x + this.width : this.x - 30;
-                    ctx.fillRect(punchX, drawY + 30, 30, 15); // Pugno teso
-                } else if (this.state === 'kicking') {
-                    ctx.fillStyle = '#ffaa00';
-                    let kickX = this.side === 'left' ? this.x + this.width : this.x - 40;
-                    ctx.fillRect(kickX, drawY + 70, 40, 20); // Calcio teso
-                } else if (this.state === 'hit') {
-                    ctx.fillStyle = '#fff'; // Lampeggia di bianco se colpito
-                    ctx.fillRect(this.x, drawY, this.width, drawHeight);
+                // Busto
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY + 45);
+                ctx.lineTo(centerX, centerY + 100);
+                ctx.lineWidth = 8;
+                ctx.stroke();
+                ctx.lineWidth = 4;
+
+                // Gambe
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY + 100);
+                ctx.lineTo(centerX - 15, centerY + 160);
+                ctx.moveTo(centerX, centerY + 100);
+                ctx.lineTo(centerX + 15, centerY + 160);
+                ctx.stroke();
+
+                // Braccia
+                ctx.beginPath();
+                const shoulderY = centerY + 55;
+                const armLength = 40;
+                
+                if (this.state === 'punching' && this.stateTimer > 4) {
+                    ctx.moveTo(centerX, shoulderY);
+                    const punchDir = this.side === 'left' ? 1 : -1;
+                    ctx.lineTo(centerX + armLength * punchDir * 1.5, shoulderY);
+                } else if (this.state === 'blocking') {
+                    ctx.moveTo(centerX, shoulderY - 10);
+                    ctx.lineTo(centerX + (this.side === 'left' ? 15 : -15), shoulderY + 20);
+                    ctx.moveTo(centerX, shoulderY - 10);
+                    ctx.lineTo(centerX + (this.side === 'left' ? 20 : -20), shoulderY + 15);
+                } else if (this.state === 'kicking' && this.stateTimer > 5) {
+                    ctx.strokeStyle = ctx.shadowColor;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY + 100);
+                    ctx.lineTo(centerX - (this.side === 'left' ? 20 : -20), centerY + 160);
+                    ctx.moveTo(centerX, centerY + 90);
+                    const kickDir = this.side === 'left' ? 1 : -1;
+                    ctx.lineTo(centerX + armLength * kickDir * 1.8, centerY + 80);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, shoulderY); ctx.lineTo(centerX - 10, shoulderY + 30);
+                } else {
+                    const bob = (this.state === 'walking' ? Math.sin(this.animFrame * 0.2) * 3 : 0);
+                    ctx.moveTo(centerX, shoulderY);
+                    ctx.lineTo(centerX + (this.side === 'left' ? 10 : -10), shoulderY + 30 + bob);
+                    ctx.moveTo(centerX, shoulderY);
+                    ctx.lineTo(centerX + (this.side === 'left' ? 15 : -15), shoulderY + 25 - bob);
                 }
+                ctx.stroke();
 
                 ctx.restore();
             }
         }
 
-        // Istanza dei combattenti
-        const player1 = new Fighter(100, 0, '#00ffcc', 'left');
-        const player2 = new Fighter(500, 0, '#ff00ff', 'right');
+        const GROUND_Y_LOGIC = LOGICAL_HEIGHT - 40;
+        const player1 = new Fighter(150, GROUND_Y_LOGIC, '#00ffcc', 'left');
+        const player2 = new Fighter(780, GROUND_Y_LOGIC, '#ff00ff', 'right');
 
-        // --- RETE E CONNESSIONE MULTIPLAYER (PEERJS) ---
+        // --- RETE E CONNESSIONE MULTIPLAYER ---
         const urlParams = new URLSearchParams(window.location.search);
-        const role = urlParams.get('role'); // Controlla se siamo "host" o "controller"
+        const role = urlParams.get('role');
         let peer = null;
         let conn = null;
 
         if (role === 'controller') {
-            // COMPORTAMENTO CONTROLLER (GIOCATORE 2)
             document.getElementById('game-screen').style.display = 'none';
             document.getElementById('controller-screen').style.display = 'flex';
             
             const targetPeerId = urlParams.get('room');
+            const statusDiv = document.getElementById('controller-status');
             peer = new Peer();
 
             peer.on('open', () => {
-                document.getElementById('controller-status').innerText = "Connessione alla console...";
+                statusDiv.innerText = "Connessione alla console...";
                 conn = peer.connect(targetPeerId);
                 
                 conn.on('open', () => {
-                    document.getElementById('controller-status').innerText = "CONNESSO! Usa i comandi sotto.";
-                    document.getElementById('controller-status').style.color = "#00ffcc";
+                    statusDiv.innerText = "CONNESSO! Sei il Giocatore 2";
+                    statusDiv.style.color = '#ff00ff';
                 });
 
                 conn.on('close', () => {
-                    document.getElementById('controller-status').innerText = "Disconnesso.";
-                    document.getElementById('controller-status').style.color = "#ff0000";
+                    statusDiv.innerText = "Disconnesso.";
+                    statusDiv.style.color = "#ff0000";
                 });
             });
 
-            // Assegna eventi touch ai pulsanti del controller remoto
             bindTouchButton('c-btn-left', 'left');
             bindTouchButton('c-btn-right', 'right');
             bindTouchButton('c-btn-punch', 'punch');
@@ -425,27 +579,33 @@
             bindTouchButton('c-btn-block', 'block');
 
         } else {
-            // COMPORTAMENTO CONSOLE DI GIOCO (HOST & GIOCATORE 1)
             peer = new Peer();
             
             peer.on('open', (id) => {
-                // Genera il link per il controller del Giocatore 2
-                const controllerUrl = `${window.location.href.split('?')[0]}?role=controller&room=${id}`;
+                const baseUrl = window.location.href.split('?')[0];
+                const controllerUrl = `${baseUrl}?role=controller&room=${id}`;
                 
-                // Genera QR Code all'interno dell'overlay
-                new QRCode(document.getElementById("qrcode"), {
-                    text: controllerUrl,
-                    width: 180,
-                    height: 180
-                });
+                // Aggiorna il testo e mostra il link alternativo
+                document.getElementById('loading-text').innerText = "In attesa che P2 si colleghi...";
+                const altLink = document.getElementById('controller-link');
+                altLink.href = controllerUrl;
+                altLink.style.display = "block";
+
+                // Utilizzo dell'API pubblica qrserver per caricare il codice QR istantaneamente
+                const qrImg = document.getElementById("qrcode-img");
+                const encodedUrl = encodeURIComponent(controllerUrl);
+                qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodedUrl}`;
             });
 
             peer.on('connection', (connection) => {
                 conn = connection;
                 document.getElementById('lobby-overlay').style.display = 'none';
-                document.getElementById('p2-label').innerText = "P2 (Connesso)";
+                const p2Label = document.getElementById('p2-label');
+                p2Label.innerText = "P2 (Connesso)";
+                p2Label.style.color = '#ff00ff';
                 
-                // Ricezione comandi dal Giocatore 2
+                resetGame();
+
                 conn.on('data', (data) => {
                     if (data.type === 'INPUT') {
                         inputState.p2 = data.inputs;
@@ -453,27 +613,25 @@
                 });
             });
 
-            // Assegna eventi touch locali per il Giocatore 1
             bindTouchButton('btn-left', 'left', 'p1');
             bindTouchButton('btn-right', 'right', 'p1');
             bindTouchButton('btn-punch', 'punch', 'p1');
             bindTouchButton('btn-kick', 'kick', 'p1');
             bindTouchButton('btn-block', 'block', 'p1');
 
-            // Avvia loop del gioco sul terminale Host
             requestAnimationFrame(gameLoop);
         }
 
-        // --- SISTEMA DI INPUT (TOUCH & KEYBOARD) ---
+        // --- SISTEMA DI INPUT ---
         function bindTouchButton(elementId, action, targetPlayer = null) {
             const btn = document.getElementById(elementId);
+            if(!btn) return;
             
             const startPress = (e) => {
                 e.preventDefault();
                 if (targetPlayer) {
                     inputState[targetPlayer][action] = true;
                 } else if (conn && conn.open) {
-                    // Se siamo sul controller remoto, spediamo lo stato all'Host
                     inputState.p2[action] = true;
                     sendInputs();
                 }
@@ -489,48 +647,53 @@
                 }
             };
 
-            btn.addEventListener('touchstart', startPress);
-            btn.addEventListener('touchend', endPress);
-            // Fallback per test su PC con mouse
-            btn.addEventListener('mousedown', startPress);
-            btn.addEventListener('mouseup', endPress);
+            btn.addEventListener('pointerdown', startPress);
+            btn.addEventListener('pointerup', endPress);
+            btn.addEventListener('pointercancel', endPress);
+            btn.addEventListener('pointerleave', endPress);
         }
 
+        let lastSendTime = 0;
         function sendInputs() {
             if (conn && conn.open) {
-                conn.send({
-                    type: 'INPUT',
-                    inputs: inputState.p2
-                });
+                const now = Date.now();
+                if (now - lastSendTime > 16) { 
+                    conn.send({
+                        type: 'INPUT',
+                        inputs: inputState.p2
+                    });
+                    lastSendTime = now;
+                }
             }
         }
 
-        // Supporto Tastiera PC (Per testare l'Host rapidamente)
-        window.addEventListener('keydown', (e) => {
-            if (role === 'controller') return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') inputState.p1.left = true;
-            if (e.key === 'ArrowRight' || e.key === 'd') inputState.p1.right = true;
-            if (e.key === 'f') inputState.p1.punch = true;
-            if (e.key === 'g') inputState.p1.kick = true;
-            if (e.key === 'h') inputState.p1.block = true;
-        });
+        // Supporto tastiera PC
+        if (role !== 'controller') {
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'a') inputState.p1.left = true;
+                if (e.key === 'ArrowRight' || e.key === 'd') inputState.p1.right = true;
+                if (e.key === 'f') inputState.p1.punch = true;
+                if (e.key === 'g') inputState.p1.kick = true;
+                if (e.key === 'h') inputState.p1.block = true;
+            });
 
-        window.addEventListener('keyup', (e) => {
-            if (role === 'controller') return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') inputState.p1.left = false;
-            if (e.key === 'ArrowRight' || e.key === 'd') inputState.p1.right = false;
-            if (e.key === 'f') inputState.p1.punch = false;
-            if (e.key === 'g') inputState.p1.kick = false;
-            if (e.key === 'h') inputState.p1.block = false;
-        });
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'a') inputState.p1.left = false;
+                if (e.key === 'ArrowRight' || e.key === 'd') inputState.p1.right = false;
+                if (e.key === 'f') inputState.p1.punch = false;
+                if (e.key === 'g') inputState.p1.kick = false;
+                if (e.key === 'h') inputState.p1.block = false;
+            });
+        }
 
-
-        // --- LOOP DI GIOCO PRINCIPALE ---
+        // --- LOOP DI GIOCO ---
         let gameOver = false;
+        let gameFrame = 0;
 
         function gameLoop() {
-            if (role === 'controller') return; // Solo la console fa girare il motore grafico
+            if (role === 'controller') return;
 
+            gameFrame++;
             updatePhysics();
             drawFrame();
 
@@ -540,63 +703,101 @@
         function updatePhysics() {
             if (gameOver) return;
 
-            // Aggiorna personaggi
             player1.update(inputState.p1, player2);
             player2.update(inputState.p2, player1);
 
-            // Impedisce che si scavalchino (opzionale, ma migliora l'effetto scontro)
-            if (player1.x + player1.width > player2.x) {
-                const overlap = (player1.x + player1.width) - player2.x;
-                player1.x -= overlap / 2;
-                player2.x += overlap / 2;
+            // Evita collisione troppo vicina
+            const minDistance = 60;
+            const selfCenter1 = player1.x + player1.width / 2;
+            const selfCenter2 = player2.x + player2.width / 2;
+            const dist = selfCenter2 - selfCenter1;
+
+            if (dist < minDistance) {
+                const pushBack = (minDistance - dist) / 2;
+                player1.x -= pushBack;
+                player2.x += pushBack;
             }
 
-            // Aggiorna graficamente le barre salute nel DOM
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.5;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
             document.getElementById('p1-health').style.width = `${player1.health}%`;
             document.getElementById('p2-health').style.width = `${player2.health}%`;
 
-            // Controllo fine partita
             if (player1.health <= 0 || player2.health <= 0) {
                 endGame();
             }
         }
 
         function drawFrame() {
-            // Sfondo
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.fillStyle = 'rgba(5, 1, 16, 0.3)';
+            ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
-            // Disegna Terreno retro
-            ctx.fillStyle = '#2d004d';
-            ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
-            ctx.fillStyle = '#ff0055';
-            ctx.fillRect(0, canvas.height - 23, canvas.width, 3); // Linea neon sul pavimento
+            ctx.strokeStyle = '#1a0a3a';
+            ctx.lineWidth = 1;
+            const gridLines = 10;
+            for(let i=0; i<=gridLines; i++) {
+                let y = GROUND_Y_LOGIC + (i * (LOGICAL_HEIGHT - GROUND_Y_LOGIC) / gridLines);
+                ctx.beginPath();
+                ctx.moveTo(0, y); ctx.lineTo(LOGICAL_WIDTH, y);
+                ctx.stroke();
+            }
 
-            // Disegna combattenti
+            ctx.strokeStyle = '#330066';
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 10; ctx.shadowColor = '#6600ff';
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND_Y_LOGIC);
+            ctx.lineTo(LOGICAL_WIDTH, GROUND_Y_LOGIC);
+            ctx.stroke();
+            ctx.restore();
+
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+            ctx.globalAlpha = 1;
+
             player1.draw();
             player2.draw();
         }
 
         function endGame() {
+            if(gameOver) return;
             gameOver = true;
-            const winnerText = document.getElementById('winnerText');
             const screen = document.getElementById('winner-screen');
+            const textTarget = document.getElementById('winner-text');
             
             let msg = "";
+            let color = "#fff";
             if (player1.health === player2.health) {
                 msg = "PAREGGIO!";
             } else if (player1.health > player2.health) {
                 msg = "GIOCATORE 1 VINCE!";
+                color = '#00ffcc';
             } else {
                 msg = "GIOCATORE 2 VINCE!";
+                color = '#ff00ff';
             }
             
-            document.getElementById('winner-text').innerText = msg;
+            textTarget.innerText = msg;
+            textTarget.style.color = color;
+            textTarget.style.textShadow = `0 0 20px ${color}`;
             screen.style.display = 'flex';
         }
 
         function resetGame() {
             player1.reset();
             player2.reset();
+            particles = [];
             gameOver = false;
             document.getElementById('winner-screen').style.display = 'none';
         }
