@@ -365,12 +365,12 @@
 
         let particles = [];
         function createHitParticles(x, y, color) {
-            for (let i = 0; i < 15; i++) {
+            for (let i = 0; i < 20; i++) {
                 particles.push({
                     x: x, y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 20 + Math.random() * 10,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.5) * 14 - 3,
+                    life: 25 + Math.random() * 15,
                     color: color
                 });
             }
@@ -391,31 +391,26 @@
             reader.onload = function(event) {
                 const img = new Image();
                 img.onload = function() {
-                    // Creiamo un canvas di supporto per ritagliare la faccia in un cerchio
                     const cropCanvas = document.createElement('canvas');
-                    const size = 150; // Dimensione dell'avatar ritagliato
+                    const size = 200; // Risoluzione aumentata dell'avatar per la nuova testa gigante
                     cropCanvas.width = size;
                     cropCanvas.height = size;
                     const cropCtx = cropCanvas.getContext('2d');
 
-                    // Calcolo ritaglio al centro (mantenendo le proporzioni quadrate)
                     const minDim = Math.min(img.width, img.height);
                     const sx = (img.width - minDim) / 2;
                     const sy = (img.height - minDim) / 2;
 
-                    // Disegniamo il ritaglio a cerchio
                     cropCtx.beginPath();
                     cropCtx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
                     cropCtx.clip();
                     cropCtx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
 
-                    // Salviamo l'immagine finale elaborata
                     const croppedImg = new Image();
                     croppedImg.onload = function() {
                         if (playerKey === 'p1') {
                             playerAvatars.p1 = croppedImg;
                         } else {
-                            // Se siamo il controller remoto P2, salviamo e inviamo l'immagine a P1 tramite P2P
                             playerAvatars.p2 = croppedImg;
                             if (conn && conn.open) {
                                 conn.send({
@@ -432,17 +427,18 @@
             reader.readAsDataURL(file);
         }
 
-        // --- CLASSE PERSONAGGIO STILIZZATA (Shadow/Neon con Face-Mapping) ---
+        // --- CLASSE PERSONAGGIO CON GRAFICA DETTAGLIATA NEON ---
         class Fighter {
             constructor(x, y, color, side, playerKey) {
                 this.startX = x;
                 this.groundY = y;
                 this.mainColor = color;
                 this.side = side;
-                this.playerKey = playerKey; // 'p1' o 'p2'
+                this.playerKey = playerKey; 
                 
-                this.width = 70;
-                this.height = 160;
+                // Dimensioni notevolmente ingrandite (Prima: 70x160, Ora: 110x250)
+                this.width = 110;
+                this.height = 250;
                 this.x = x;
                 this.y = y - this.height;
                 
@@ -495,12 +491,12 @@
                             this.state = 'punching';
                             this.stateTimer = 12;
                             this.vx = 0;
-                            this.checkHit(opponent, 8, 90, '#ff5555');
+                            this.checkHit(opponent, 8, 140, '#ff5555'); // Range di colpo proporzionato
                         } else if (inputs.kick) {
                             this.state = 'kicking';
                             this.stateTimer = 18;
                             this.vx = 0;
-                            this.checkHit(opponent, 12, 110, '#ffaa00');
+                            this.checkHit(opponent, 12, 170, '#ffaa00'); // Range di colpo proporzionato
                         }
                     }
                 }
@@ -518,7 +514,7 @@
 
                 if (distance < range) {
                     let hitX = opponent.x + opponent.width/2;
-                    let hitY = opponent.y + opponent.height/2;
+                    let hitY = opponent.y + opponent.height/3; // Spostato l'impatto verso il petto/testa
 
                     if (opponent.state === 'blocking') {
                         opponent.takeDamage(damage * 0.1, false);
@@ -537,19 +533,21 @@
                 if (shouldStun) {
                     this.state = 'hit';
                     this.stateTimer = 15;
-                    this.vx = (this.side === 'left' ? -2 : 2);
+                    this.vx = (this.side === 'left' ? -3 : 3);
                 }
             }
 
             draw() {
                 ctx.save();
                 
-                ctx.shadowBlur = 15;
+                // Effetti Neon d'Impatto Globale
+                ctx.shadowBlur = 18;
                 ctx.shadowColor = this.mainColor;
                 ctx.strokeStyle = this.mainColor;
-                ctx.lineWidth = 4;
-                ctx.fillStyle = '#000';
+                ctx.fillStyle = '#110a24'; // Riempimento semitrasparente scuro per i muscoli/corazza
+                ctx.lineWidth = 5;
 
+                // Cambiamenti di colore in base allo stato
                 if (this.state === 'hit') {
                     ctx.strokeStyle = '#fff'; ctx.shadowColor = '#fff';
                 } else if (this.state === 'punching' || this.state === 'kicking') {
@@ -560,80 +558,192 @@
 
                 const centerX = this.x + this.width / 2;
                 const centerY = this.y;
+                const facing = this.side === 'left' ? 1 : -1;
 
-                // --- DISEGNO TESTA (O FOTO CARICATA) ---
+                // --- 1. DISEGNO TESTA (O FOTO AVATAR CARICATA) ---
                 const avatar = playerAvatars[this.playerKey];
-                const headRadius = 22;
-                const headCenterY = centerY + 25;
+                const headRadius = 32; // Più grande e definita (Prima: 22)
+                const headCenterY = centerY + 35;
 
                 if (avatar) {
-                    // Rimuove l'ombra durante il disegno della foto per non opacizzarla
                     ctx.save();
                     ctx.shadowBlur = 0;
                     ctx.drawImage(avatar, centerX - headRadius, headCenterY - headRadius, headRadius * 2, headRadius * 2);
                     ctx.restore();
-                    // Bordo al neon sopra la faccia
+                    // Corona o casco cibernetico a protezione dell'avatar
                     ctx.beginPath();
                     ctx.arc(centerX, headCenterY, headRadius, 0, Math.PI * 2);
                     ctx.stroke();
                 } else {
-                    // Testa standard
+                    // Testa Robotica Dettagliata (Se non c'è foto)
                     ctx.beginPath();
-                    ctx.arc(centerX, headCenterY, headRadius - 2, 0, Math.PI * 2);
+                    ctx.arc(centerX, headCenterY, headRadius - 4, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
+
+                    // Visore Neon Orizzontale futuristico
+                    ctx.save();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX - 15 * facing, headCenterY - 4);
+                    ctx.lineTo(centerX + 15 * facing, headCenterY - 4);
+                    ctx.stroke();
+                    ctx.restore();
                 }
 
-                // Busto
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY + 45);
-                ctx.lineTo(centerX, centerY + 100);
-                ctx.lineWidth = 8;
-                ctx.stroke();
-                ctx.lineWidth = 4;
+                // --- 2. BUSTO CORAZZATO A PIASTRE (Sci-Fi/Cyberpunk) ---
+                const neckY = centerY + 67;
+                const pelvisY = centerY + 150;
+                const shoulderWidth = 45;
 
-                // Gambe
+                // Spalle geometriche (Glow)
                 ctx.beginPath();
-                ctx.moveTo(centerX, centerY + 100);
-                ctx.lineTo(centerX - 15, centerY + 160);
-                ctx.moveTo(centerX, centerY + 100);
-                ctx.lineTo(centerX + 15, centerY + 160);
+                ctx.moveTo(centerX - shoulderWidth, neckY + 10);
+                ctx.lineTo(centerX + shoulderWidth, neckY + 10);
+                ctx.lineTo(centerX + shoulderWidth - 10, neckY + 25);
+                ctx.lineTo(centerX - shoulderWidth + 10, neckY + 25);
+                ctx.closePath();
+                ctx.fill();
                 ctx.stroke();
 
-                // Braccia
+                // Piastra Pettorale con gradiente interno
                 ctx.beginPath();
-                const shoulderY = centerY + 55;
-                const armLength = 40;
-                
-                if (this.state === 'punching' && this.stateTimer > 4) {
-                    ctx.moveTo(centerX, shoulderY);
-                    const punchDir = this.side === 'left' ? 1 : -1;
-                    ctx.lineTo(centerX + armLength * punchDir * 1.5, shoulderY);
-                } else if (this.state === 'blocking') {
-                    ctx.moveTo(centerX, shoulderY - 10);
-                    ctx.lineTo(centerX + (this.side === 'left' ? 15 : -15), shoulderY + 20);
-                    ctx.moveTo(centerX, shoulderY - 10);
-                    ctx.lineTo(centerX + (this.side === 'left' ? 20 : -20), shoulderY + 15);
-                } else if (this.state === 'kicking' && this.stateTimer > 5) {
-                    ctx.strokeStyle = ctx.shadowColor;
+                ctx.moveTo(centerX - shoulderWidth + 5, neckY + 25);
+                ctx.lineTo(centerX + shoulderWidth - 5, neckY + 25);
+                ctx.lineTo(centerX + 20, pelvisY);
+                ctx.lineTo(centerX - 20, pelvisY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Nucleo di energia centrale al neon sul petto
+                ctx.save();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(centerX, neckY + 60, 10, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+
+                // --- 3. GAMBE (Ingegnerizzate a pistoni) ---
+                const legOffset = 18;
+                const feetY = centerY + 250;
+
+                ctx.lineWidth = 6;
+                // Gamba Sinistra (Con giunto meccanico)
+                ctx.beginPath();
+                ctx.moveTo(centerX - legOffset, pelvisY);
+                ctx.lineTo(centerX - 25, pelvisY + 50); // Ginocchio
+                ctx.lineTo(centerX - 20, feetY); // Piede
+                ctx.lineTo(centerX - 35, feetY); // Punta scarpa
+                ctx.stroke();
+
+                // Gamba Destra
+                ctx.beginPath();
+                ctx.moveTo(centerX + legOffset, pelvisY);
+                ctx.lineTo(centerX + 25, pelvisY + 50); 
+                ctx.lineTo(centerX + 20, feetY);
+                ctx.lineTo(centerX + 35, feetY);
+                ctx.stroke();
+
+                // --- 4. BRACCIA DINAMICHE (Fluidità negli attacchi) ---
+                const leftShoulderX = centerX - shoulderWidth + 5;
+                const rightShoulderX = centerX + shoulderWidth - 5;
+                const armY = neckY + 15;
+                ctx.lineWidth = 5.5;
+
+                if (this.state === 'punching' && this.stateTimer > 3) {
+                    // Colpo caricato in avanti con pugno rinforzato
                     ctx.beginPath();
-                    ctx.moveTo(centerX, centerY + 100);
-                    ctx.lineTo(centerX - (this.side === 'left' ? 20 : -20), centerY + 160);
-                    ctx.moveTo(centerX, centerY + 90);
-                    const kickDir = this.side === 'left' ? 1 : -1;
-                    ctx.lineTo(centerX + armLength * kickDir * 1.8, centerY + 80);
+                    const sX = this.side === 'left' ? leftShoulderX : rightShoulderX;
+                    ctx.moveTo(sX, armY);
+                    
+                    const extX = centerX + 95 * facing;
+                    ctx.lineTo(centerX + 40 * facing, armY - 5);
+                    ctx.lineTo(extX, armY - 5);
                     ctx.stroke();
+
+                    // Bagliore pugno d'impatto
+                    ctx.save();
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(extX, armY - 5, 12, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Braccio a riposo/difesa
+                    ctx.beginPath();
+                    const oX = this.side === 'left' ? rightShoulderX : leftShoulderX;
+                    ctx.moveTo(oX, armY);
+                    ctx.lineTo(centerX - 10 * facing, armY + 40);
+                    ctx.stroke();
+
+                } else if (this.state === 'blocking') {
+                    // Doppia parata a croce protettiva (con scudo energetico)
+                    ctx.beginPath();
+                    ctx.moveTo(leftShoulderX, armY);
+                    ctx.lineTo(centerX + 15 * facing, armY - 10);
+                    ctx.lineTo(centerX + 20 * facing, armY + 20);
+                    ctx.moveTo(rightShoulderX, armY);
+                    ctx.lineTo(centerX + 15 * facing, armY - 5);
+                    ctx.lineTo(centerX + 25 * facing, armY + 25);
+                    ctx.stroke();
+
+                    // Effetto barriera geometrica di sbarramento
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(85, 170, 255, 0.4)';
+                    ctx.fillStyle = 'rgba(85, 170, 255, 0.1)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(centerX + 35 * facing, armY + 5, 45, -Math.PI/2, Math.PI/2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+
+                } else if (this.state === 'kicking' && this.stateTimer > 4) {
+                    // Braccia bilanciate per la spinta del calcio
+                    ctx.beginPath();
+                    ctx.moveTo(leftShoulderX, armY);
+                    ctx.lineTo(centerX - 25 * facing, armY + 30);
+                    ctx.moveTo(rightShoulderX, armY);
+                    ctx.lineTo(centerX - 30 * facing, armY + 25);
+                    ctx.stroke();
+
+                    // Gamba in estensione massima del calcio voltato
+                    ctx.save();
+                    ctx.strokeStyle = ctx.shadowColor;
+                    ctx.lineWidth = 8;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, pelvisY);
+                    const kickTargetX = centerX + 115 * facing;
+                    const kickTargetY = centerY + 110;
+                    ctx.lineTo(centerX + 40 * facing, pelvisY - 10);
+                    ctx.lineTo(kickTargetX, kickTargetY);
+                    ctx.stroke();
+
+                    // Scia d'impatto sul calcio
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(kickTargetX, kickTargetY, 14, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+
+                } else {
+                    // Animazione idle di respirazione e ondeggiamento braccia
+                    const bob = (this.state === 'walking' ? Math.sin(this.animFrame * 0.22) * 6 : Math.sin(this.animFrame * 0.08) * 3);
                     
                     ctx.beginPath();
-                    ctx.moveTo(centerX, shoulderY); ctx.lineTo(centerX - 10, shoulderY + 30);
-                } else {
-                    const bob = (this.state === 'walking' ? Math.sin(this.animFrame * 0.2) * 3 : 0);
-                    ctx.moveTo(centerX, shoulderY);
-                    ctx.lineTo(centerX + (this.side === 'left' ? 10 : -10), shoulderY + 30 + bob);
-                    ctx.moveTo(centerX, shoulderY);
-                    ctx.lineTo(centerX + (this.side === 'left' ? 15 : -15), shoulderY + 25 - bob);
+                    ctx.moveTo(leftShoulderX, armY);
+                    ctx.lineTo(leftShoulderX - 12, armY + 45 + bob);
+                    ctx.lineTo(centerX - 20 * facing, armY + 70 + bob);
+                    
+                    ctx.moveTo(rightShoulderX, armY);
+                    ctx.lineTo(rightShoulderX + 12, armY + 40 - bob);
+                    ctx.lineTo(centerX + 20 * facing, armY + 65 - bob);
+                    ctx.stroke();
                 }
-                ctx.stroke();
 
                 ctx.restore();
             }
@@ -708,7 +818,6 @@
                     if (data.type === 'INPUT') {
                         inputState.p2 = data.inputs;
                     } else if (data.type === 'AVATAR') {
-                        // Quando P2 invia la sua foto, la carichiamo nel gioco principale
                         const tempImg = new Image();
                         tempImg.onload = function() {
                             playerAvatars.p2 = tempImg;
@@ -811,8 +920,8 @@
             player1.update(inputState.p1, player2);
             player2.update(inputState.p2, player1);
 
-            // Evita collisione troppo vicina (i due giocatori non si appiccicano)
-            const minDistance = 60;
+            // Evita collisione troppo vicina, adattata per la corporatura dei nuovi giganti
+            const minDistance = 100;
             const selfCenter1 = player1.x + player1.width / 2;
             const selfCenter2 = player2.x + player2.width / 2;
             const dist = selfCenter2 - selfCenter1;
@@ -866,8 +975,8 @@
 
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life / 30;
-                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = p.life / 40;
+                ctx.fillRect(p.x, p.y, 5, 5); // Particelle leggermente più grandi
             });
             ctx.globalAlpha = 1;
 
